@@ -2,7 +2,8 @@ from pydantic import BaseModel, validator
 import struct
 
 
-packet_structure = struct.Struct('!BBffffffffffffBBBBBBh')
+packet_telemetry = struct.Struct('!BBffffffffffffBBBBfh')
+packet_control = struct.Struct('!BBBBBBffffffffh')
 keys = ['0', 'id', 'roll', 'pitch', 'yaw', 'gyro_z', 'depth', 'altitude', 'velocity_x', 'velocity_y', 'pos_x', 'pos_y',
      'voltage', 'current', 'pid_stat', 'devices_stat', 'leak', 'device_error', 'reserved_0', 'reserved_1', 'reserved_2',
      'reserved_3', 'crc']
@@ -54,8 +55,8 @@ class Telemetry(BaseModel):
     @validator('pid_stat', pre=True)
     def validate_pid_stat(cls, v):
         b = '{0:08b}'.format(v)
-        return PidStats(roll=bool(int(b[-1])), pitch=bool(int(b[-2])), yaw=bool(int(b[-3])), depth=bool(int(b[-4])),
-                        altitude=bool(int(b[-5])), speed_x=bool(int(b[-6])), speed_y=bool(int(b[-7])))
+        return PidStats(roll=bool(int(b[-1])), pitch=bool(int(b[-2])), yaw=bool(int(b[-5])), depth=bool(int(b[-3])),
+                        altitude=bool(int(b[-4])), speed_x=bool(int(b[-6])), speed_y=bool(int(b[-7])))
 
     @validator('devices_stat', pre=True)
     def validate_devices_stat(cls, v):
@@ -71,3 +72,59 @@ class Telemetry(BaseModel):
     def validate_device_error(cls, v):
         b = '{0:08b}'.format(v)
         return DevicesError(pressure_sensor=bool(int(b[-1])), navigation_module=bool(int(b[-2])))
+
+
+class Thrust(BaseModel):
+    value: int
+
+    @validator('value', pre=True)
+    def validate_value(cls, v):
+        if v > 100:
+            return 100
+        elif v < -100:
+            return -100
+
+
+class FloatValue(BaseModel):
+    value: float
+
+
+class XThrust(Thrust):
+    pass
+
+
+class YThrust(Thrust):
+    pass
+
+
+class WThrust(Thrust):
+    pass
+
+
+class ZThrust(Thrust):
+    pass
+
+
+class Depth(FloatValue):
+    pass
+
+
+class AltSet(FloatValue):
+    pass
+
+
+class Yaw(FloatValue):
+    pass
+
+
+class XVelocity(FloatValue):
+    pass
+
+
+class YVelocity(FloatValue):
+    pass
+
+
+class NavFlag(BaseModel):
+    value: bool
+

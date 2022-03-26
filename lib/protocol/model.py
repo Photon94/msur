@@ -2,7 +2,7 @@ from pydantic import BaseModel, validator
 import struct
 
 
-packet_structure = struct.Struct('BBffffffffffffBBBBBBBBh')
+packet_structure = struct.Struct('!BBffffffffffffBBBBBBh')
 keys = ['0', 'id', 'roll', 'pitch', 'yaw', 'gyro_z', 'depth', 'altitude', 'velocity_x', 'velocity_y', 'pos_x', 'pos_y',
      'voltage', 'current', 'pid_stat', 'devices_stat', 'leak', 'device_error', 'reserved_0', 'reserved_1', 'reserved_2',
      'reserved_3', 'crc']

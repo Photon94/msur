@@ -2,6 +2,7 @@ import socket
 from typing import Callable
 from crc16 import crc16xmodem as crc16
 from protocol.model import *
+from collections import defaultdict
 
 
 class Receiver:
@@ -27,9 +28,30 @@ class Receiver:
             self.errors_counter += 1
             return func(Telemetry())
         data = packet_telemetry.unpack(data)
-        dict_ = dict(zip(keys, data))
+        dict_ = dict(zip(telemetry_keys, data))
         self.packet_counter += 1
         return func(Telemetry(**dict_))
+
+
+message_map = {
+    (230, 15): [XThrust, YThrust, ZThrust, Depth, AltSet, Yaw, XVelocity, YVelocity, PidStats, ExternalDevices, NavFlag],
+    (110, 3): [DepthPidConfig],
+    (111, 3): [AltitudePidConfig],
+    (112, 3): [RollPidConfig],
+    (113, 3): [PitchPidConfig],
+    (114, 3): [YawPidConfig],
+    (115, 3): [VelXPidConfig],
+    (116, 3): [VelYPidConfig],
+    (117, 3): [GyroPidConfig],
+    (133, 6): [RebootConfig],
+}
+
+# arg_map = [arg: type_ for type_, args in message_map.items()]
+
+byte_map = {
+    XThrust: 2, YThrust: 3, WThrust: 4, ZThrust: 5, Depth: 6, AltSet: 7, Yaw: 8, XVelocity: 9, YVelocity: 10,
+    PidStats: 11, ExternalDevices: 12, NavFlag: 13,
+}
 
 
 class Sender:
@@ -39,20 +61,22 @@ class Sender:
         self.packet_counter = 0
 
     @staticmethod
-    def pack(*args) -> []:
-        packet = [0, 230, *[0]*15]
-
+    def _split_packets(*args) -> []:
+        types = defaultdict(list)
         for arg in args:
-            if isinstance(arg, (XThrust, YThrust, ZThrust)):
-                packet[{XThrust: 2, YThrust: 3, WThrust: 4, ZThrust: 5}[arg.__class__]] = arg.value
-            elif isinstance(arg, (Depth, AltSet, Yaw, XVelocity, YVelocity)):
-                packet[{Depth: 6, AltSet: 7, Yaw: 8, XVelocity: 9, YVelocity: 10}[arg.__class__]] = arg.value
-            elif isinstance(arg, PidStats):
-                packet[11] = arg.encode()
-            elif isinstance(arg, DevicesStats):
-                packet[12] = arg.encode()
-            elif isinstance(arg, NavFlag):
-                packet[13] = arg.value
+            pass
+        pass
+
+    @staticmethod
+    def _get_settings(*args) -> (int, int):
+        return 1, 1
+
+    @classmethod
+    def pack(cls, *args) -> []:
+        id_, len_ = cls._get_settings(*args)
+        packet = [0, id_, *[0]*len_]
+        for arg in args:
+            arg.encode(packet)
         return packet
 
     def loop(self, func: Callable):

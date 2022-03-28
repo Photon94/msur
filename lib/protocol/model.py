@@ -1,9 +1,13 @@
 from pydantic import BaseModel, validator
+from pydantic.generics import GenericModel
+from typing import TypeVar, Generic
 import struct
 
 
-packet_telemetry = struct.Struct('!BBffffffffffffBBBBfh')
-packet_control = struct.Struct('!BBBBBBffffffffh')
+packet_telemetry = struct.Struct('!BBffffffffffffBBBBf')
+packet_control = struct.Struct('!BBBBBBfffffBBBffB')
+packet_crc = struct.Struct('!H')
+
 keys = ['0', 'id', 'roll', 'pitch', 'yaw', 'gyro_z', 'depth', 'altitude', 'velocity_x', 'velocity_y', 'pos_x', 'pos_y',
      'voltage', 'current', 'pid_stat', 'devices_stat', 'leak', 'device_error', 'reserved_0', 'reserved_1', 'reserved_2',
      'reserved_3', 'crc']
@@ -18,10 +22,17 @@ class PidStats(BaseModel):
     speed_x: bool
     speed_y: bool
 
+    def encode(self) -> int:
+        return int(''.join([str(int(i)) for i in reversed([self.roll, self.pitch, self.depth, self.altitude, self.yaw,
+                                                           self.speed_x, self.speed_y, 0])]), 2)
+
 
 class DevicesStats(BaseModel):
     em_1: bool
     em_2: bool
+
+    def encode(self) -> int:
+        pass
 
 
 class LeakStatus(BaseModel):
@@ -83,9 +94,10 @@ class Thrust(BaseModel):
             return 100
         elif v < -100:
             return -100
+        return v
 
 
-class FloatValue(BaseModel):
+class FloatValue(GenericModel):
     value: float
 
 

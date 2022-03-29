@@ -33,47 +33,72 @@ class Receiver:
         return func(Telemetry(**dict_))
 
 
-message_map = {
-    (230, 15): [XThrust, YThrust, ZThrust, Depth, AltSet, Yaw, XVelocity, YVelocity, PidStats, ExternalDevices, NavFlag],
-    (110, 3): [DepthPidConfig],
-    (111, 3): [AltitudePidConfig],
-    (112, 3): [RollPidConfig],
-    (113, 3): [PitchPidConfig],
-    (114, 3): [YawPidConfig],
-    (115, 3): [VelXPidConfig],
-    (116, 3): [VelYPidConfig],
-    (117, 3): [GyroPidConfig],
-    (133, 6): [RebootConfig],
-}
+class IClient(ABC):
 
-# arg_map = [arg: type_ for type_, args in message_map.items()]
+    def __init__(self, address):
+        self.address = address
 
-byte_map = {
-    XThrust: 2, YThrust: 3, WThrust: 4, ZThrust: 5, Depth: 6, AltSet: 7, Yaw: 8, XVelocity: 9, YVelocity: 10,
-    PidStats: 11, ExternalDevices: 12, NavFlag: 13,
-}
+    @abstractmethod
+    def send(self, packet: list, structure: struct.Struct) -> None:
+        pass
+
+
+class Client(IClient):
+
+    def __init__(self, address):
+        super().__init__(address)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def send(self, packet: list, structure: struct.Struct) -> None:
+        packet = structure.pack(*packet)
+        crc = packet_crc.pack(crc16(packet))
+        self.socket.sendto(packet+crc, self.address)
 
 
 class Sender:
+    """
+    Приниает на вход функцию которая возвращает список объектов для отправки,
+    разделяет их по типам и последовательно отправляет,
+    Терминология:
+    [XThrust, YThrust, RollPidSettings, Reboot] - список объектов управления, все эти объекты должны быть отправлены в
+    разных пакетах, с разными заголовками, такой список пакетов называется смешанный список объектов управления
+    [[XThrust, YThrust], [RollPidSettings], [Reboot]] это следующая стадия, список списка объектов, каждый список это
+    отдельный udp пакет, каждый этот список может быть отправлен одним сообщениям даже если он содержит множество
+    объектов. такая структура называется списком пакетов управления
+    [0, 230, 0 ...] - непосредственно пакет управления, закодированный и готовый к отправки
+    """
     def __init__(self, address: (str, int)):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.address = address
+        self.client = self.get_client(address)
         self.packet_counter = 0
+
+    @staticmethod
+    def get_client(address) -> IClient:
+        return Client(address)
 
     @staticmethod
     def _split_packets(*args) -> []:
         types = defaultdict(list)
         for arg in args:
-            pass
-        pass
+            types[arg_map[arg.__class__]].append(arg)
+        return list(types.values())
 
     @staticmethod
-    def _get_settings(*args) -> (int, int):
-        return 1, 1
+    def _get_packet_settings(*args) -> (int, int):
+        return arg_map[args[0].__class__]
+
+    @staticmethod
+    def _get_struct_settings(*args) -> struct.Struct:
+        return structure_map[args[0].__class__]
 
     @classmethod
-    def pack(cls, *args) -> []:
-        id_, len_ = cls._get_settings(*args)
+    def make_packet(cls, *args) -> []:
+        """
+        :param args: список объектов управления или настроек
+        :return: пакет отправляемы на аппарат
+        """
+        # получаем настройки для данного типа пакетов, важно что в эту функцию приходят пакеты отправляемые вместе
+        id_, len_ = cls._get_packet_settings(*args)
+
         packet = [0, id_, *[0]*len_]
         for arg in args:
             arg.encode(packet)
@@ -84,7 +109,9 @@ class Sender:
             self.ones(func)
 
     def ones(self, func: Callable):
-        packet = packet_control.pack(*self.pack(*func()))
-        crc = packet_crc.pack(crc16(packet))
-        self.socket.sendto(packet+crc, self.address)
-        self.packet_counter += 1
+        # тут пакеты уже разделены по типам
+        packets = self._split_packets(*func())
+        for packet in packets:
+            encoded_packet = self.make_packet(*packet)
+            self.client.send(encoded_packet, self._get_struct_settings(*packet))
+            self.packet_counter += 1

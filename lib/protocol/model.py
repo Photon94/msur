@@ -2,6 +2,7 @@ from pydantic import BaseModel, validator
 from pydantic.generics import GenericModel
 from typing import TypeVar, Generic
 import struct
+from abc import ABC, abstractmethod
 
 
 packet_telemetry = struct.Struct('!BBffffffffffffBBBBf')
@@ -17,8 +18,9 @@ telemetry_keys = [
 ]
 
 
-class IBase(BaseModel):
+class IBase(ABC, BaseModel):
 
+    @abstractmethod
     def encode(self, packet: list) -> list:
         pass
 
@@ -84,9 +86,9 @@ class GyroPidConfig(PidConfig):
 
 
 class RebootConfig(IBase):
-    stm: bool
-    pc: bool
-    hydro: bool
+    stm: bool = False
+    pc: bool = False
+    hydro: bool = False
 
     def encode(self, packet: list) -> list:
         packet[2] = int(self.stm)
@@ -96,8 +98,8 @@ class RebootConfig(IBase):
 
 
 class ExternalDevices(IBase):
-    em_1: bool
-    em_2: bool
+    em_1: bool = False
+    em_2: bool = False
 
     def encode(self, packet: list) -> list:
         value = int(''.join([str(int(i)) for i in reversed([self.em_1, self.em_2, 0, 0, 0, 0, 0, 0])]), 2)
@@ -232,3 +234,36 @@ class NavFlag(BaseModel):
     def encode(self, packet: list) -> list:
         packet[13] = int(self.value)
         return packet
+
+
+message_map = {
+    (230, 15): [XThrust, YThrust, ZThrust, Depth, AltSet, Yaw, XVelocity, YVelocity, PidStats, ExternalDevices, NavFlag],
+    (110, 3): [DepthPidConfig],
+    (111, 3): [AltitudePidConfig],
+    (112, 3): [RollPidConfig],
+    (113, 3): [PitchPidConfig],
+    (114, 3): [YawPidConfig],
+    (115, 3): [VelXPidConfig],
+    (116, 3): [VelYPidConfig],
+    (117, 3): [GyroPidConfig],
+    (133, 6): [RebootConfig],
+}
+arg_map = {}
+for k, v in message_map.items():
+    for i in v:
+        arg_map[i] = k
+
+
+structure_map_ = {
+    packet_control: [XThrust, YThrust, ZThrust, Depth, AltSet, Yaw, XVelocity, YVelocity, PidStats, ExternalDevices,
+                     NavFlag],
+    packet_pid: [GyroPidConfig, VelYPidConfig, VelXPidConfig, YawPidConfig, PitchPidConfig, RollPidConfig,
+                 AltitudePidConfig, DepthPidConfig],
+    packet_reboot: [RebootConfig]
+}
+
+
+structure_map = {}
+for k, v in structure_map_.items():
+    for i in v:
+        structure_map[i] = k

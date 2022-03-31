@@ -36,6 +36,9 @@ rosidl_generate_interfaces(
   msg/DevConfig.msg
   msg/DevError.msg
   msg/Leaks.msg
+  srv/UpdatePid.srv
+  srv/WritePid.srv
+  srv/Reboot.srv
   DEPENDENCIES std_msgs
 )
 

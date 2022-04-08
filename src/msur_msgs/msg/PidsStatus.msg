@@ -5,5 +5,5 @@ bool pitch
 bool yaw
 bool depth
 bool altitude
-bool spd_x
-bool spd_y
+bool speed_x
+bool speed_y

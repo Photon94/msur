@@ -1,3 +1,4 @@
+std_msgs/Header header
 
 # Pid types
 
@@ -14,5 +15,3 @@ uint8 type
 float32 p
 float32 i
 float32 d
----
-bool success

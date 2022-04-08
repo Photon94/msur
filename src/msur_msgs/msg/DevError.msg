@@ -1,4 +1,4 @@
 std_msgs/Header header
 
-bool pressure
-bool imu
+bool pressure_sensor
+bool imu_module

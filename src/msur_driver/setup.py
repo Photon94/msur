@@ -20,13 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'receiver = msur_driver.receiver:main',
-            'update_pid_service = msur_driver.update_pid_service:main',
-            'update_pid_client = msur_driver.update_pid_client:main',
-            'write_pid_service = msur_driver.write_pid_service:main',
-            'write_pid_client = msur_driver.write_pid_client:main',
-            'reboot_device_service = msur_driver.reboot_device_service:main',
-            'reboot_device_client = msur_driver.reboot_device_client:main',
+            'driver = msur_driver.driver:main',
         ],
     },
 )

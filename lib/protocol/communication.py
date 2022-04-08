@@ -1,8 +1,26 @@
+import logging
 import socket
+import time
 from typing import Callable
-from crc16 import crc16xmodem as crc16
+# from crc16 import crc16xmodem as crc16
 from protocol.model import *
 from collections import defaultdict
+import pathlib
+from ctypes import *
+from abc import ABC, abstractmethod
+
+# libname = str(pathlib.Path().absolute() / "crc16.so")
+libname = '/home/parallels/pythonProject/msur/lib/utils/crc16.so'
+c_lib = CDLL(libname, mode=RTLD_GLOBAL)
+
+c_lib.crc16.argtypes = [POINTER(c_ubyte), c_uint16]
+c_lib.crc16.restype = c_uint16
+
+
+def crc16(packet: list):
+    data_block = (c_ubyte * len(packet))(*packet)
+    p = cast(addressof(data_block), POINTER(c_ubyte))
+    return c_lib.crc16(p, len(packet))
 
 
 class Receiver:
@@ -16,6 +34,7 @@ class Receiver:
     def loop(self, func: Callable):
         while True:
             self.ones(func)
+            time.sleep(0.1)
 
     def ones(self, func: Callable):
         try:
@@ -50,9 +69,9 @@ class Client(IClient):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, packet: list, structure: struct.Struct) -> None:
-        packet = structure.pack(*packet)
-        crc = packet_crc.pack(crc16(packet))
-        self.socket.sendto(packet+crc, self.address)
+        coded_packet = structure.pack(*packet)
+        crc = packet_crc.pack(crc16(coded_packet))
+        self.socket.sendto(coded_packet+crc, self.address)
 
 
 class Sender:
@@ -112,6 +131,7 @@ class Sender:
         # тут пакеты уже разделены по типам
         packets = self._split_packets(*func())
         for packet in packets:
+            print(packet)
             encoded_packet = self.make_packet(*packet)
             self.client.send(encoded_packet, self._get_struct_settings(*packet))
             self.packet_counter += 1

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 
 packet_telemetry = struct.Struct('!BBffffffffffffBBBBf')
-packet_control = struct.Struct('!BBBBBBfffffBBBffB')
+packet_control = struct.Struct('!BBbbbbfffffBBBffB')
 packet_pid = struct.Struct('!BBfff')
 packet_reboot = struct.Struct('!BBBBBBBB')
 packet_crc = struct.Struct('!H')
@@ -48,8 +48,8 @@ class PidConfig(IBase):
 
     def encode(self, packet: list) -> list:
         packet[2] = self.p
-        packet[3] = self.i
-        packet[4] = self.d
+        packet[4] = self.i
+        packet[3] = self.d
         return packet
 
 
@@ -85,6 +85,14 @@ class GyroPidConfig(PidConfig):
     pass
 
 
+class WriteConfig(IBase):
+    pid: bool
+
+    def encode(self, packet: list) -> list:
+        packet[5] = int(self.pid)
+        return packet
+
+
 class RebootConfig(IBase):
     stm: bool = False
     pc: bool = False
@@ -109,12 +117,12 @@ class ExternalDevices(IBase):
 
 class LeakStatus(BaseModel):
     main: bool
-    navigation: bool
+    imu: bool
 
 
 class DevicesError(BaseModel):
     pressure_sensor: bool
-    navigation_module: bool
+    imu_module: bool
 
 
 class Telemetry(BaseModel):
@@ -137,24 +145,35 @@ class Telemetry(BaseModel):
 
     @validator('pid_stat', pre=True)
     def validate_pid_stat(cls, v):
+        if isinstance(v, PidStats):
+            return v
         b = '{0:08b}'.format(v)
         return PidStats(roll=bool(int(b[-1])), pitch=bool(int(b[-2])), yaw=bool(int(b[-5])), depth=bool(int(b[-3])),
                         altitude=bool(int(b[-4])), speed_x=bool(int(b[-6])), speed_y=bool(int(b[-7])))
 
     @validator('devices_stat', pre=True)
     def validate_devices_stat(cls, v):
+        if isinstance(v, ExternalDevices):
+            return v
         b = '{0:08b}'.format(v)
         return ExternalDevices(em_1=bool(int(b[-1])), em_2=bool(int(b[-2])))
 
     @validator('leak', pre=True)
     def validate_leak(cls, v):
+        if isinstance(v, LeakStatus):
+            return v
         b = '{0:08b}'.format(v)
         return LeakStatus(main=bool(int(b[-1])), navigation=bool(int(b[-2])))
 
     @validator('device_error', pre=True)
     def validate_device_error(cls, v):
+        if isinstance(v, DevicesError):
+            return v
         b = '{0:08b}'.format(v)
         return DevicesError(pressure_sensor=bool(int(b[-1])), navigation_module=bool(int(b[-2])))
+
+    def get_vector(self, vector):
+        return vector(x=self.pitch, y=self.yaw, z=self.roll)
 
 
 class Thrust(IBase):
@@ -246,7 +265,7 @@ message_map = {
     (115, 3): [VelXPidConfig],
     (116, 3): [VelYPidConfig],
     (117, 3): [GyroPidConfig],
-    (133, 6): [RebootConfig],
+    (133, 6): [RebootConfig, WriteConfig],
 }
 arg_map = {}
 for k, v in message_map.items():
@@ -259,7 +278,7 @@ structure_map_ = {
                      NavFlag],
     packet_pid: [GyroPidConfig, VelYPidConfig, VelXPidConfig, YawPidConfig, PitchPidConfig, RollPidConfig,
                  AltitudePidConfig, DepthPidConfig],
-    packet_reboot: [RebootConfig]
+    packet_reboot: [RebootConfig, WriteConfig]
 }
 
 

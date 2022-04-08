@@ -1,15 +1,14 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
-from std_msgs.msg import String
-from protocol.communication import Receiver, Sender
-from protocol.tests import TestReceiver
+from msur_lib.protocol.communication import Receiver, Sender
+from msur_lib.protocol.tests import TestReceiver
 from msur_msgs.msg import DevConfig, DevError, PidsStatus, Leaks, UpdatePid, Reboot
 from geometry_msgs.msg import PoseStamped, Vector3, Twist
 from sensor_msgs.msg import BatteryState, Imu
 from std_msgs.msg import Header, Bool
 import numpy as np
-from protocol.model import *
+from msur_lib.protocol.model import *
 
 
 def to_quaternion(pitch, yaw, roll) -> list:
@@ -40,13 +39,25 @@ class Driver(Node):
 
     def __init__(self):
         super().__init__('driver')
-        self. receiver = TestReceiver(('127.0.0.1', 2065))
-        # self.receiver = Receiver(('192.168.90.77', 2065))
+        self.declare_parameter('debug', 'false')
+        self.declare_parameter('local_address', '192.168.90.77')
+        self.declare_parameter('local_port', '2065')
+        self.declare_parameter('remote_address', '192.168.90.1')
+        self.declare_parameter('remote_port', '2030')
+
+        self.debug = self.get_parameter('debug').get_parameter_value().string_value
+        self.local_address = self.get_parameter('local_address').get_parameter_value().string_value
+        self.remote_address = self.get_parameter('remote_address').get_parameter_value().string_value
+        self.local_port = self.get_parameter('local_address').get_parameter_value().integer_value
+        self.remote_port = self.get_parameter('remote_address').get_parameter_value().integer_value
+
+        if self.debug == 'true':
+            self. receiver = TestReceiver(('127.0.0.1', 2065))
+        else:
+            self.receiver = Receiver((self.local_address, self.local_port))
         self.receiver.logger = self.get_logger()
         self.timer = Time()
         self.send_buffer = []
-
-        # self.position_publisher = self.create_publisher(TelemetryPosition, 'telemetry/position', 10)
 
         self.config_publisher = self.create_publisher(DevConfig, 'telemetry/devices', 10)
         self.leaks_publisher = self.create_publisher(Leaks, 'telemetry/leaks', 10)
@@ -57,13 +68,15 @@ class Driver(Node):
 
         self.i = 0
 
-        self.sender = Sender(('192.168.90.1', 2030))
+        self.sender = Sender((self.remote_address, self.remote_port))
         self.pid_subscriber = self.create_subscription(UpdatePid, 'config/pid', self.update_pid, 10)
         self.rewrite = self.create_subscription(Bool, 'config/rewrite', self.rewrite, 10)
         self.reboot_subscriber = self.create_subscription(Reboot, 'config/reboot', self.reboot_device, 10)
         self.motion = self.create_subscription(Twist, 'cmd_vel', self.motion, 10)
 
-        self.get_logger().info('Running driver node')
+        self.get_logger().info(f'Running driver node in {"debug" if self.debug == "true" else "production"} mode on: '
+                               f'{self.local_address}:{self.local_port} and target: {self.remote_address}: '
+                               f'{self.remote_port}')
         self.timer = self.create_timer(0.1, self.driver_loop)
 
     def driver_loop(self):
